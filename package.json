@@ -19,7 +19,9 @@
     "hubot-scripts": ">= 2.1.0",
     "optparse": "1.0.3",
     "hubot-gtalk": "~1.0.5",
-    "node-expat": "~1.6.1"
+    "node-expat": "~1.6.1",
+    "socket.io": "~0.9.11",
+    "moment": "~1.7.2"
   },
   "engines": {
     "node": "0.6.x",
