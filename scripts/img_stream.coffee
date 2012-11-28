@@ -1,8 +1,6 @@
-IMAGE_RE = /https?:\/\/(?:[a-z\-]+\.)+[a-z]{2,6}(?:\/[^\/#?]+)+\.(?:jpe?g|gif|png)/gi
+URL_RE = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig
 CACHE_MAX_SIZE = 50
 SOCKET_IMAGE_EVENT = 'hubot_img_stream_image'
-
-moment = require 'moment'
 
 class ImageStream
   constructor: (@robot, port) ->
@@ -19,10 +17,10 @@ class ImageStream
         socket.emit SOCKET_IMAGE_EVENT, image
 
   receive: (url, user) ->
-    image = {'url': url, 'user': user, 'date': moment().format('h:mm:ss a')}
+    image = {'url': url, 'user': user, 'date': new Date}
     if @cache.length > CACHE_MAX_SIZE
-      @cache.pop()
-    @cache.splice 0, 0, image
+      @cache.splice 0, 1
+    @cache.push image
     @io.sockets.emit SOCKET_IMAGE_EVENT, image
 
 module.exports = (robot) ->
@@ -34,8 +32,23 @@ module.exports = (robot) ->
   else
     serverURL = process.env.HEROKU_URL
   
-  robot.hear IMAGE_RE, (res) ->
-    (imageStream.receive m, res.message.user.name) for m in res.match
+  matchImageURL = (url) -> (url.match /\b(?:jpe?g|png|gif)\b/i)?
+  
+  robot.hear URL_RE, (res) ->
+    for url in res.match
+      if matchImageURL(url)?
+        imageStream.receive url, res.message.user.name
+
+  oldSend = robot.adapter.send
+  newSend = (user, strings...) ->
+    console.log arguments
+    for str in strings
+      urlMatches = str.match URL_RE
+      for url in urlMatches
+        if matchImageURL(url)?
+          imageStream.receive url, robot.name
+    oldSend.apply(robot.adapter, arguments)
+  robot.adapter.send = newSend
 
   robot.router.get '/hubot/img_stream', (req, res) ->
     res.writeHead 200,
