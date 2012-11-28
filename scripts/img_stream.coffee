@@ -1,26 +1,37 @@
 IMAGE_RE = /https?:\/\/(?:[a-z\-]+\.)+[a-z]{2,6}(?:\/[^\/#?]+)+\.(?:jpe?g|gif|png)/gi
 CACHE_MAX_SIZE = 50
-SOCKET_IO_PORT = 8001
+SOCKET_IMAGE_EVENT = 'hubot_img_stream_image'
 
 moment = require 'moment'
 
 class ImageStream
   constructor: (@robot, port) ->
     @cache = []
-    @io = require('socket.io').listen SOCKET_IO_PORT
+    @io = (require 'socket.io').listen @robot.server
+    
+    @io.configure =>
+      @io.set "transports", ["xhr-polling"]
+      @io.set "polling duration", 10
+    
     @io.sockets.on 'connection', (socket) =>
       for image in @cache
-        socket.emit 'image', image
+        socket.emit SOCKET_IMAGE_EVENT, image
 
   receive: (url, user) ->
     image = {'url': url, 'user': user, 'date': moment().format('h:mm:ss a')}
     if @cache.length > CACHE_MAX_SIZE
       @cache.pop()
     @cache.splice 0, 0, image
-    @io.sockets.emit 'image', image
+    @io.sockets.emit SOCKET_IMAGE_EVENT, image
 
 module.exports = (robot) ->
   imageStream = new ImageStream robot
+  
+  if not process.env.HEROKU_URL?
+    serverAddress = robot.server.address()
+    serverURL = "http://#{serverAddress.address}:#{serverAddress.port}"
+  else
+    serverURL = process.env.HEROKU_URL
   
   robot.hear IMAGE_RE, (res) ->
     (imageStream.receive m, res.message.user.name) for m in res.match
@@ -31,7 +42,7 @@ module.exports = (robot) ->
     res.write """
     <html>
     <head>
-      <script src="#{process.env.HEROKU_URL}:#{SOCKET_IO_PORT}/socket.io/socket.io.js"></script>
+      <script src="#{serverURL}/socket.io/socket.io.js"></script>
       <script>
         var createImageLink = function (url) {
           var img = document.createElement("img");
@@ -71,8 +82,8 @@ module.exports = (robot) ->
           return div;
         };
         
-        var socket = io.connect("#{process.env.HEROKU_URL}:#{SOCKET_IO_PORT}");
-        socket.on("image", function (image) {
+        var socket = io.connect("#{serverURL}");
+        socket.on("#{SOCKET_IMAGE_EVENT}", function (image) {
           var container = document.getElementById("images"),
               item = createImageItem(image);
           if (container.firstChild) {
