@@ -41,6 +41,7 @@ module.exports = (robot) ->
     res.writeHead 200,
       'Content-Type': 'text/html; charset=utf-8'
     res.write """
+    <!DOCTYPE html>
     <html>
     <head>
       <script src="#{serverURL}/socket.io/socket.io.js"></script>
